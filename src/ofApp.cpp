@@ -54,6 +54,15 @@ void ofApp::setup(){
     ));
 
     ofSetLogLevel(OF_LOG_NOTICE); // Set default log level
+
+    // hitmark setup
+    bool ok = hitmarkImage.load("hitmark.png");
+    hitmarkImage.setAnchorPercent(0.5f, 0.5f);
+    hitmarkSound.load("hitmarkSound.mp3");
+    hitmarkSound.setMultiPlay(true);
+    hitmarkSound.setVolume(0.9f);
+    if (hitmarkSound.isLoaded()) {
+    }
 }
 
 //--------------------------------------------------------------
@@ -73,15 +82,33 @@ void ofApp::update(){
     }
 
     gameManager->UpdateActiveScene();
-    
 
+ //update hitmarker 
+ if(hit.active && --hit.timer <= 0) hit.active = false;
+ }
 
-}
 
 //--------------------------------------------------------------
 void ofApp::draw(){
     backgroundImage.draw(0, 0);
     gameManager->DrawActiveScene();
+    
+    //draw hitmarker
+    if (hit.active && hitmarkImage.isAllocated()){
+    ofPushStyle();
+    ofEnableAlphaBlending();
+    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+    float a = 255.0f * hit.alpha();
+    float imgW = hitmarkImage.getWidth();
+    float imgH = hitmarkImage.getHeight();
+    float base = (hit.sizePx > 0 ? hit.sizePx : imgW);
+    float shrink = 0.3f; 
+    float w = base * shrink;
+    float h = (base * imgH / imgW) * shrink;
+    ofSetColor(255,255,255,(int)a);
+    hitmarkImage.draw(hit.x, hit.y, w, h);
+    ofPopStyle();
+}
 }
 
 //--------------------------------------------------------------

@@ -5,6 +5,8 @@
 #include <iostream>
 #include <algorithm>
 #include "Core.h"
+#include "PowerUp.h" //added 
+#pragma once //added
 
 
 enum class AquariumCreatureType {
@@ -39,10 +41,10 @@ class AquariumLevel : public GameLevel {
     protected:
         std::vector<std::shared_ptr<AquariumLevelPopulationNode>> m_levelPopulation;
         int m_level_score;
+        int targetScore;
         int m_targetScore;
 
 };
-
 
 class PlayerCreature : public Creature {
 public:
@@ -67,6 +69,36 @@ public:
     void loseLife(int debounce);
     void increasePower(int value) { m_power += value; }
     void reduceDamageDebounce();
+
+    //itembox
+    float baseSpeed = 0.0f;
+    float baseRadius = 0.0f;
+
+    // Speed boost
+    bool  speedBoostOn = false;
+    float speedBoostUntil = 0.0f;
+
+    // Size x2
+    bool  sizeBoostOn = false;
+    float sizeBoostUntil = 0.0f;
+
+    // Dash 
+    bool  dashUnlocked = false;
+    bool  dashActive = false;
+    float dashActiveUntil = 0.0f;
+    float dashCooldownUntil = 0.0f;
+    float dashSpeedFactor = 3.0f;
+    float dashDuration = 0.25f;
+    float dashCooldown = 1.25f;
+
+    // Power-up
+    void initPowerUpBases() { 
+        baseSpeed = m_speed; 
+        // baseRadius = m_collision_radius;
+    }
+    void applyPowerUp(PowerUpEffect effect, float now, float durationSec);
+    void updatePowerUps(float now);
+    void tryDash(float now);
     
 private:
     int m_score = 0;
@@ -105,7 +137,7 @@ class AquariumSpriteManager {
 };
 
 
-class Aquarium{
+class Aquarium : public GameLevel{
 public:
     Aquarium(int width, int height, std::shared_ptr<AquariumSpriteManager> spriteManager);
     void addCreature(std::shared_ptr<Creature> creature);
@@ -123,6 +155,13 @@ public:
     int getCreatureCount() const { return m_creatures.size(); }
     int getWidth() const { return m_width; }
     int getHeight() const { return m_height; }
+    void scheduleNextItemBox(float now);
+    void spawnItemBox();
+    void updateItemBox(float now, float dt);
+    void drawItemBox();
+    void checkItemBoxCollision(float now, std::shared_ptr<PlayerCreature> player);
+    bool isCompleted() override;
+
 
 
 private:
@@ -134,6 +173,11 @@ private:
     std::vector<std::shared_ptr<Creature>> m_next_creatures;
     std::vector<std::shared_ptr<AquariumLevel>> m_aquariumlevels;
     std::shared_ptr<AquariumSpriteManager> m_sprite_manager;
+    PowerUpBox itemBox;
+    bool itemBoxPresent = false;
+    float nextSpawnAt = 0.0f;
+    float scoreMultiplier = 1.0f;
+    float scoreMultUntil  = 0.0f;
 };
 
 
@@ -190,3 +234,21 @@ class Level_2 : public AquariumLevel  {
         std::vector<AquariumCreatureType> Repopulate() override;
 
 };
+
+//powerup box
+// class Aquarium : public GameLevel {
+
+//     public: 
+// void scheduleNextItemBox(float now);
+// void spawnItemBox();
+// void updateItemBox(float now, float dt);
+// void drawItemBox() const;
+// void checkItemBoxCollision(float now, std::shared_ptr<PlayerCreature> player);
+
+// private:
+// PowerUpBox itemBox;
+// bool itemBoxPresent = false;
+// float nextSpawnAt = 0.0f;
+// float scoreMultiplier = 1.0f;
+// float scoreMultUntil  = 0.0f;
+// };

@@ -4,7 +4,7 @@
 #include <cmath>
 #include <algorithm>
 #include "ofMain.h"
-
+#pragma once
 
 class AwaitFrames {
 public:

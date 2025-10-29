@@ -1,5 +1,6 @@
 #include "Aquarium.h"
 #include <cstdlib>
+#include "ofApp.h" //added for hitmarker
 
 
 string AquariumCreatureTypeToString(AquariumCreatureType t){
@@ -152,8 +153,7 @@ std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureTyp
 
 
 // Aquarium Implementation
-Aquarium::Aquarium(int width, int height, std::shared_ptr<AquariumSpriteManager> spriteManager)
-    : m_width(width), m_height(height) {
+Aquarium::Aquarium(int width, int height, std::shared_ptr<AquariumSpriteManager> spriteManager) : GameLevel(10), m_width(width), m_height(height) {
         m_sprite_manager =  spriteManager;
     }
 
@@ -278,13 +278,33 @@ void AquariumGameScene::Update(){
     std::shared_ptr<GameEvent> event;
 
     this->m_player->update();
+    //itemblock
+    float now = ofGetElapsedTimef();
+    float dt  = ofGetLastFrameTime();
 
+    m_aquarium->updateItemBox(now, dt);
+    m_aquarium->checkItemBoxCollision(now, m_player);
+    m_player->updatePowerUps(now);
+/////////////////////////////////////////////////////////////////
     if (this->updateControl.tick()) {
         event = DetectAquariumCollisions(this->m_aquarium, this->m_player);
         if (event != nullptr && event->isCollisionEvent()) {
             ofLogVerbose() << "Collision detected between player and NPC!" << std::endl;
             if(event->creatureB != nullptr){
                 event->print();
+                //hitmark
+                auto baseApp = ofGetAppPtr();
+                    auto* app = dynamic_cast<ofApp*>(baseApp);
+                    const float SPRITE_TO_COLLISION = 3.5f;
+                    float creatureDia = event->creatureB->getCollisionRadius() * 2.0f;
+                    float hitSize = creatureDia * SPRITE_TO_COLLISION;
+                    if (app) {
+                    app->hit.trigger(
+                    event->creatureB->getX() + event->creatureB->getCollisionRadius(),
+                    event->creatureB->getY() + event->creatureB->getCollisionRadius(),
+                    2, hitSize);
+                    if (app->hitmarkSound.isLoaded()) app->hitmarkSound.play();
+                    }
                 if(this->m_player->getPower() < event->creatureB->getValue()){
                     ofLogNotice() << "Player is too weak to eat the creature!" << std::endl;
                     this->m_player->loseLife(3*60); // 3 frames debounce, 3 seconds at 60fps
@@ -302,9 +322,6 @@ void AquariumGameScene::Update(){
                     }
                     
                 }
-                
-                
-
             } else {
                 ofLogError() << "Error: creatureB is null in collision event." << std::endl;
             }
@@ -320,7 +337,6 @@ void AquariumGameScene::Draw() {
     this->paintAquariumHUD();
 
 }
-
 
 void AquariumGameScene::paintAquariumHUD(){
     float panelWidth = ofGetWindowWidth() - 150;
@@ -360,9 +376,6 @@ bool AquariumLevel::isCompleted(){
     return this->m_level_score >= this->m_targetScore;
 }
 
-
-
-
 std::vector<AquariumCreatureType> Level_0::Repopulate() {
     std::vector<AquariumCreatureType> toRepopulate;
     for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
@@ -376,7 +389,6 @@ std::vector<AquariumCreatureType> Level_0::Repopulate() {
         }
     }
     return toRepopulate;
-
 }
 
 std::vector<AquariumCreatureType> Level_1::Repopulate() {
@@ -405,4 +417,116 @@ std::vector<AquariumCreatureType> Level_2::Repopulate() {
         }
     }
     return toRepopulate;
+}
+
+void Aquarium::scheduleNextItemBox(float now) {
+    nextSpawnAt = now + ofRandom(8.0f, 15.0f);
+}
+
+void Aquarium::spawnItemBox() {
+    float margin = 80.0f;
+    float x = ofRandom(margin, ofGetWidth()  - margin);
+    float y = ofRandom(margin, ofGetHeight() - margin);
+    itemBox.spawn(x, y);
+    itemBoxPresent = true;
+}
+
+void Aquarium::updateItemBox(float now, float dt) {
+    if (!itemBoxPresent && now >= nextSpawnAt) {
+        spawnItemBox();
+    }
+    itemBox.update(dt);
+
+    // expira doble puntos
+    if (scoreMultiplier > 1.0f && now >= scoreMultUntil) {
+        scoreMultiplier = 1.0f;
+    }
+}
+
+void Aquarium::drawItemBox() {
+    if (itemBoxPresent) itemBox.draw();
+}
+
+void Aquarium::checkItemBoxCollision(float now, std::shared_ptr<PlayerCreature> player) {
+    if (!itemBoxPresent || !itemBox.active || !player) return;
+
+    float dist = ofDist(player->getX(), player->getY(), itemBox.pos.x, itemBox.pos.y);
+    if (dist <= player->getCollisionRadius() + itemBox.radius) {
+        itemBox.playSound();
+
+        PowerUpEffect effect = RandomPowerUpEffect();
+
+        const float D_SPEED  = 5.0f;
+        const float D_SIZE   = 5.0f;
+        const float D_DBLPTS = 8.0f;
+
+        switch (effect) {
+            case PowerUpEffect::DoublePoints:
+                scoreMultiplier = 2.0f;
+                scoreMultUntil  = now + D_DBLPTS;
+                break;
+            case PowerUpEffect::Speed:
+                player->applyPowerUp(PowerUpEffect::Speed, now, D_SPEED);
+                break;
+            case PowerUpEffect::Dash:
+                player->applyPowerUp(PowerUpEffect::Dash, now, 0.0f);
+                break;
+            case PowerUpEffect::Size:
+                player->applyPowerUp(PowerUpEffect::Size, now, D_SIZE);
+                break;
+        }
+
+        itemBox.active = false;
+        itemBoxPresent = false;
+        scheduleNextItemBox(now);
+    }
+}
+bool Aquarium::isCompleted() { return false; }
+void PlayerCreature::applyPowerUp(PowerUpEffect effect, float now, float durationSec) {
+    switch (effect) {
+        case PowerUpEffect::Speed:
+            speedBoostOn = true;
+            speedBoostUntil = now + durationSec;
+            m_speed = baseSpeed * 2.0f;
+            break;
+
+        case PowerUpEffect::Size:
+            sizeBoostOn = true;
+            sizeBoostUntil = now + durationSec;
+            setCollisionRadius(baseRadius * 2.0f); 
+            break;
+
+        case PowerUpEffect::Dash:
+            dashUnlocked = true;
+            tryDash(now); 
+            break;
+
+        case PowerUpEffect::DoublePoints:
+            break;
+    }
+}
+
+void PlayerCreature::updatePowerUps(float now) {
+    if (speedBoostOn && now >= speedBoostUntil) {
+        speedBoostOn = false;
+        m_speed = baseSpeed;
+    }
+    if (sizeBoostOn && now >= sizeBoostUntil) {
+        sizeBoostOn = false;
+        setCollisionRadius(baseRadius);
+    }
+    if (dashActive && now >= dashActiveUntil) {
+        dashActive = false;
+    }
+}
+
+void PlayerCreature::tryDash(float now) {
+    if (!dashUnlocked) return;
+    if (now < dashCooldownUntil || dashActive) return;
+
+    dashActive = true;
+    dashActiveUntil   = now + dashDuration;
+    dashCooldownUntil = now + dashCooldown;
+    baseSpeed = m_speed;
+    baseRadius = getCollisionRadius();
 }
