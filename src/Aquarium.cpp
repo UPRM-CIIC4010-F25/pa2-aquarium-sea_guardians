@@ -1,5 +1,9 @@
 #include "Aquarium.h"
 #include <cstdlib>
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 
 string AquariumCreatureTypeToString(AquariumCreatureType t){
@@ -8,10 +12,15 @@ string AquariumCreatureTypeToString(AquariumCreatureType t){
             return "BiggerFish";
         case AquariumCreatureType::NPCreature:
             return "BaseFish";
+              case AquariumCreatureType::PlaneFish:
+            return "PlaneFish";
+        case AquariumCreatureType::RainbowFish:
+            return "RainbowFish";
         default:
             return "UknownFish";
     }
 }
+
 
 // PlayerCreature Implementation
 PlayerCreature::PlayerCreature(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
@@ -28,6 +37,37 @@ void PlayerCreature::move() {
     m_x += m_dx * m_speed;
     m_y += m_dy * m_speed;
     this->bounce();
+
+     //boundary + unstuck logic
+ float halfW = (getCollisionRadius() > 0.0f) ? getCollisionRadius() : 10.0f;
+    float halfH = halfW;
+    float minX = halfW;
+    float minY = halfH;
+    float maxX = ofGetWidth() - halfW;
+    float maxY = ofGetHeight() - halfH;
+
+    if (m_x < minX) {
+        m_x = minX;
+        if (m_dx < 0) m_dx = fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = 0.5f;
+    }
+    if (m_x > maxX) {
+        m_x = maxX;
+        if (m_dx > 0) m_dx = -fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = -0.5f;
+    }
+    if (m_y < minY) {
+        m_y = minY;
+        if (m_dy < 0) m_dy = fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = 0.5f;
+    }
+    if (m_y > maxY) {
+        m_y = maxY;
+        if (m_dy > 0) m_dy = -fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = -0.5f;
+    }
+
+    normalize();
 }
 
 void PlayerCreature::reduceDamageDebounce() {
@@ -91,6 +131,37 @@ void NPCreature::move() {
         this->m_sprite->setFlipped(false);
     }
     bounce();
+
+    //boundary + unstuck logic
+  float halfW = (getCollisionRadius() > 0.0f) ? getCollisionRadius() : 10.0f;
+    float halfH = halfW;
+    float minX = halfW;
+    float minY = halfH;
+    float maxX = ofGetWidth() - halfW;
+    float maxY = ofGetHeight() - halfH;
+
+    if (m_x < minX) {
+        m_x = minX;
+        if (m_dx < 0) m_dx = fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = 0.25f;
+    }
+    if (m_x > maxX) {
+        m_x = maxX;
+        if (m_dx > 0) m_dx = -fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = -0.25f;
+    }
+    if (m_y < minY) {
+        m_y = minY;
+        if (m_dy < 0) m_dy = fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = 0.25f;
+    }
+     if (m_y > maxY) {
+        m_y = maxY;
+        if (m_dy > 0) m_dy = -fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = -0.25f;
+    }
+
+    normalize();
 }
 
 void NPCreature::draw() const {
@@ -124,6 +195,37 @@ void BiggerFish::move() {
     }
 
     bounce();
+
+     //boundary + unstuck logic
+    float halfW = (getCollisionRadius() > 0.0f) ? getCollisionRadius() : 20.0f;
+    float halfH = halfW;
+    float minX = halfW;
+    float minY = halfH;
+    float maxX = ofGetWidth() - halfW;
+    float maxY = ofGetHeight() - halfH;
+
+    if (m_x < minX) {
+        m_x = minX;
+        if (m_dx < 0) m_dx = fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = 0.2f;
+    }
+    if (m_x > maxX) {
+        m_x = maxX;
+        if (m_dx > 0) m_dx = -fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = -0.2f;
+    }
+     if (m_y < minY) {
+        m_y = minY;
+        if (m_dy < 0) m_dy = fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = 0.2f;
+    }
+    if (m_y > maxY) {
+        m_y = maxY;
+        if (m_dy > 0) m_dy = -fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = -0.2f;
+    }
+
+    normalize();
 }
 
 void BiggerFish::draw() const {
@@ -131,12 +233,196 @@ void BiggerFish::draw() const {
     this->m_sprite->draw(this->m_x, this->m_y);
 }
 
+PlaneFish::PlaneFish(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+: NPCreature(x, y, speed, sprite) {
+    m_dx = (rand() % 3 - 1);
+    m_dy = (rand() % 3 - 1);
+    normalize();
+    setCollisionRadius(30);
+    m_value = 3;
+    m_creatureType = AquariumCreatureType::PlaneFish;
+}
+
+void PlaneFish::move() {
+    // Dash movement - periodically speeds up
+    m_dashTimer++;
+    float currentSpeed = m_speed;
+    
+    if (m_dashTimer >= m_dashCooldown) {
+        currentSpeed *= m_dashSpeed; // Dash!
+        if (m_dashTimer >= m_dashCooldown + 30) { // 30 frames of dash
+            m_dashTimer = 0;
+        }
+    }
+
+    m_x += m_dx * currentSpeed;
+    m_y += m_dy * currentSpeed;
+
+    if(m_dx < 0) {
+        m_sprite->setFlipped(true);
+    } else {
+        m_sprite->setFlipped(false);
+    }
+     bounce();
+    
+     float halfW = (getCollisionRadius() > 0.0f) ? getCollisionRadius() : 20.0f;
+    float halfH = halfW;
+    float minX = halfW;
+    float minY = halfH;
+    float maxX = ofGetWidth() - halfW;
+    float maxY = ofGetHeight() - halfH;
+
+    if (m_x < minX) {
+        m_x = minX;
+        if (m_dx < 0) m_dx = fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = 0.2f;
+    }
+    if (m_x > maxX) {
+        m_x = maxX;
+        if (m_dx > 0) m_dx = -fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = -0.2f;
+    }
+     if (m_y < minY) {
+        m_y = minY;
+        if (m_dy < 0) m_dy = fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = 0.2f;
+    }
+    if (m_y > maxY) {
+        m_y = maxY;
+        if (m_dy > 0) m_dy = -fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = -0.2f;
+    }
+
+    normalize();
+}
+
+void PlaneFish::draw() const {
+    if (m_sprite) {
+        // Flash white during dash
+        if (m_dashTimer >= m_dashCooldown) {
+            ofSetColor(255, 255, 255, 200);
+        }
+        m_sprite->draw(m_x, m_y);
+        ofSetColor(255, 255, 255, 255);
+    }
+}
+
+//Rainbow Fish
+
+RainbowFish::RainbowFish(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+: NPCreature(x, y, speed, sprite) {
+   
+    do {
+        m_dx = static_cast<float>((rand() % 201) - 100) / 100.0f; // [-1,1]
+        m_dy = static_cast<float>((rand() % 201) - 100) / 100.0f; // [-1,1]
+    } while (std::abs(m_dx) < 0.01f && std::abs(m_dy) < 0.01f);
+    normalize();
+
+    setCollisionRadius(38.0f);
+    m_value = 5;   
+    m_creatureType = AquariumCreatureType::RainbowFish;
+
+    // motion params
+    m_phase = 0.0f;
+    m_curveSpeed = 0.08f;    
+    m_curveAmplitude = 2.5f;  
+    m_turnTimer = 0;
+    m_turnInterval = 120;    
+}
+
+void RainbowFish::move() {
+   
+    m_phase += m_curveSpeed;
+
+   
+    float vx = m_dx * m_speed;
+    float vy = m_dy * m_speed;
+
+   
+    float sway = std::sin(m_phase) * m_curveAmplitude;
+    float perpX = -m_dy * sway;
+    float perpY =  m_dx * sway;
+
+    m_x += vx + perpX;
+    m_y += vy + perpY;
+
+    // soft re-aim to a nearby heading every interval
+    if (++m_turnTimer >= m_turnInterval) {
+        m_turnTimer = 0;
+
+  // rotate heading by a small random angle [-20°, 20°]
+        float deg = static_cast<float>((rand() % 41) - 20);
+        float rad = deg * static_cast<float>(M_PI / 180.0);
+        float nx = m_dx * std::cos(rad) - m_dy * std::sin(rad);
+        float ny = m_dx * std::sin(rad) + m_dy * std::cos(rad);
+        m_dx = nx; m_dy = ny;
+        normalize();
+    }
+
+    // flip sprite based on direction
+    if (m_dx < 0) m_sprite->setFlipped(true);
+    else          m_sprite->setFlipped(false);
+
+  
+    bounce();
+   
+   
+    float halfW = (getCollisionRadius() > 0.0f) ? getCollisionRadius() : 20.0f;
+    float halfH = halfW;
+    float minX = halfW;
+    float minY = halfH;
+    float maxX = ofGetWidth() - halfW;
+    float maxY = ofGetHeight() - halfH;
+
+    if (m_x < minX) {
+        m_x = minX;
+        if (m_dx < 0) m_dx = fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = 0.2f;
+    }
+    if (m_x > maxX) {
+        m_x = maxX;
+        if (m_dx > 0) m_dx = -fabs(m_dx);
+        if (fabs(m_dx) < 0.01f) m_dx = -0.2f;
+    }
+     if (m_y < minY) {
+        m_y = minY;
+        if (m_dy < 0) m_dy = fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = 0.2f;
+    }
+    if (m_y > maxY) {
+        m_y = maxY;
+        if (m_dy > 0) m_dy = -fabs(m_dy);
+        if (fabs(m_dy) < 0.01f) m_dy = -0.2f;
+    }
+
+    normalize();
+}
+
+void RainbowFish::draw() const {
+    if (!m_sprite) return;
+
+    
+    float phase = m_phase; 
+    int hue = static_cast<int>(std::fmod(phase * 40.0f, 255.0f)); // 0..254
+    ofColor tint = ofColor::fromHsb(hue, 200, 255, 255);
+
+    ofPushStyle();
+    ofSetColor(tint);
+    m_sprite->draw(m_x, m_y);
+    ofPopStyle();
+}
+
+
 
 // AquariumSpriteManager
 AquariumSpriteManager::AquariumSpriteManager(){
     this->m_npc_fish = std::make_shared<GameSprite>("base-fish.png", 70,70);
     this->m_big_fish = std::make_shared<GameSprite>("bigger-fish.png", 120, 120);
+    this->m_plane_fish = std::make_shared<GameSprite>("plane-fish.png", 60, 60); 
+    this->m_rainbow_fish = std::make_shared<GameSprite>("rainbow-fish.png", 80, 80);
 }
+
+
 
 std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureType t){
     switch(t){
@@ -145,6 +431,10 @@ std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureTyp
             
         case AquariumCreatureType::NPCreature:
             return std::make_shared<GameSprite>(*this->m_npc_fish);
+        case AquariumCreatureType::PlaneFish:
+            return std::make_shared<GameSprite>(*this->m_plane_fish);
+         case AquariumCreatureType::RainbowFish:
+            return std::make_shared<GameSprite>(*this->m_rainbow_fish);
         default:
             return nullptr;
     }
@@ -219,6 +509,13 @@ void Aquarium::SpawnCreature(AquariumCreatureType type) {
         case AquariumCreatureType::BiggerFish:
             this->addCreature(std::make_shared<BiggerFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::BiggerFish)));
             break;
+             case AquariumCreatureType::PlaneFish:
+            this->addCreature(std::make_shared<PlaneFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::PlaneFish)));
+            break;
+              case AquariumCreatureType::RainbowFish:
+            this->addCreature(std::make_shared<RainbowFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::RainbowFish)));
+            break;
+            
         default:
             ofLogError() << "Unknown creature type to spawn!";
             break;
@@ -227,33 +524,40 @@ void Aquarium::SpawnCreature(AquariumCreatureType type) {
 }
 
 
-// repopulation will be called from the levl class
-// it will compose into aquarium so eating eats frm the pool of NPCs in the lvl class
-// once lvl criteria met, we move to new lvl through inner signal asking for new lvl
-// which will mean incrementing the buffer and pointing to a new lvl index
+
 void Aquarium::Repopulate() {
-    ofLogVerbose("entering phase repopulation");
-    // lets make the levels circular
-    int selectedLevelIdx = this->currentLevel % this->m_aquariumlevels.size();
-    ofLogVerbose() << "the current index: " << selectedLevelIdx << endl;
+    // log entry consistently using stream style
+    ofLogVerbose() << "entering phase repopulation" << std::endl;
+
+    // make sure we have levels to avoid division by zero
+    if (this->m_aquariumlevels.empty()) {
+        ofLogVerbose() << "no aquarium levels available to repopulate" << std::endl;
+        return;
+    }
+
+    // compute the selected level index in a circular manner
+    int selectedLevelIdx = this->currentLevel % static_cast<int>(this->m_aquariumlevels.size());
+    ofLogVerbose() << "the current index: " << selectedLevelIdx << std::endl;
+
     std::shared_ptr<AquariumLevel> level = this->m_aquariumlevels.at(selectedLevelIdx);
 
-
-    if(level->isCompleted()){
+    if (level->isCompleted()) {
         level->levelReset();
         this->currentLevel += 1;
-        selectedLevelIdx = this->currentLevel % this->m_aquariumlevels.size();
-        ofLogNotice()<<"new level reached : " << selectedLevelIdx << std::endl;
+        selectedLevelIdx = this->currentLevel % static_cast<int>(this->m_aquariumlevels.size());
+        ofLogNotice() << "new level reached : " << selectedLevelIdx << std::endl;
         level = this->m_aquariumlevels.at(selectedLevelIdx);
         this->clearCreatures();
     }
 
-    
-    // now lets find how many to respawn if needed 
+    // determine which creatures to respawn for this level
     std::vector<AquariumCreatureType> toRespawn = level->Repopulate();
-    ofLogVerbose() << "amount to repopulate : " << toRespawn.size() << endl;
-    if(toRespawn.size() <= 0 ){return;} // there is nothing for me to do here
-    for(AquariumCreatureType newCreatureType : toRespawn){
+    ofLogVerbose() << "amount to repopulate : " << toRespawn.size() << std::endl;
+    if (toRespawn.empty()) {
+        return; // nothing to do
+    }
+
+    for (AquariumCreatureType newCreatureType : toRespawn) {
         this->SpawnCreature(newCreatureType);
     }
 }
@@ -272,9 +576,61 @@ std::shared_ptr<GameEvent> DetectAquariumCollisions(std::shared_ptr<Aquarium> aq
     return nullptr;
 };
 
-//  Imlementation of the AquariumScene
+// Implementation of the AquariumScene
+
+
+void AquariumGameScene::Draw() {
+    this->m_player->draw();
+    this->m_aquarium->draw();
+    this->paintAquariumHUD();
+
+}
+
+
+
 
 void AquariumGameScene::Update(){
+  
+   if (!m_musicStarted) {
+        if (!m_ambientSound.isLoaded()) {
+            std::vector<std::string> candidates = {
+                "music/bgm_o.mp3",
+                "music/bgm_o.ogg",
+                "music/bgm_o.wav",
+                "music/bgm.mp3",
+                "music/bgm.ogg",
+                "music/bgm.wav"
+            };
+            for (auto &p : candidates) {
+                ofFile f(ofToDataPath(p, true));
+                if (!f.exists()) continue;
+                if (m_ambientSound.load(p)) {
+                    m_ambientSound.setMultiPlay(false);
+                    m_ambientSound.setLoop(true);
+                    m_ambientSound.setVolume(0.0f);
+                    break;
+                }
+            }
+ }
+
+        if (m_ambientSound.isLoaded()) {
+            m_ambientSound.play();
+            m_musicStarted = true;
+            m_currentVolume = 0.0f;
+            m_ambientSound.setVolume(0.0f);
+        }
+    } else {
+        if (m_currentVolume < m_targetVolume && m_ambientSound.isLoaded()) {
+            m_currentVolume = std::min(m_targetVolume, m_currentVolume + m_fadeSpeed);
+            m_ambientSound.setVolume(m_currentVolume);
+        }
+        if (m_ambientSound.isLoaded() && !m_ambientSound.isPlaying()) {
+            m_ambientSound.play();
+            m_ambientSound.setVolume(m_currentVolume);
+        }
+    }
+
+   
     std::shared_ptr<GameEvent> event;
 
     this->m_player->update();
@@ -287,7 +643,7 @@ void AquariumGameScene::Update(){
                 event->print();
                 if(this->m_player->getPower() < event->creatureB->getValue()){
                     ofLogNotice() << "Player is too weak to eat the creature!" << std::endl;
-                    this->m_player->loseLife(3*60); // 3 frames debounce, 3 seconds at 60fps
+                    this->m_player->loseLife(3*60);
                     if(this->m_player->getLives() <= 0){
                         this->m_lastEvent = std::make_shared<GameEvent>(GameEventType::GAME_OVER, this->m_player, nullptr);
                         return;
@@ -300,26 +656,15 @@ void AquariumGameScene::Update(){
                         this->m_player->increasePower(1);
                         ofLogNotice() << "Player power increased to " << this->m_player->getPower() << "!" << std::endl;
                     }
-                    
                 }
-                
-                
-
             } else {
                 ofLogError() << "Error: creatureB is null in collision event." << std::endl;
             }
         }
         this->m_aquarium->update();
     }
-
 }
 
-void AquariumGameScene::Draw() {
-    this->m_player->draw();
-    this->m_aquarium->draw();
-    this->paintAquariumHUD();
-
-}
 
 
 void AquariumGameScene::paintAquariumHUD(){
