@@ -1,5 +1,10 @@
 #include "Aquarium.h"
 #include <cstdlib>
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#include "ofApp.h"
 
 
 string AquariumCreatureTypeToString(AquariumCreatureType t){
@@ -115,6 +120,7 @@ NPCreature::NPCreature(float x, float y, int speed, std::shared_ptr<GameSprite> 
     normalize();
 
     m_creatureType = AquariumCreatureType::NPCreature;
+     setRequiredPower(getValue());
 }
 
 void NPCreature::move() {
@@ -236,6 +242,7 @@ PlaneFish::PlaneFish(float x, float y, int speed, std::shared_ptr<GameSprite> sp
     normalize();
     setCollisionRadius(30);
     m_value = 3;
+    setRequiredPower(1);
     m_creatureType = AquariumCreatureType::PlaneFish;
 }
 
@@ -315,7 +322,8 @@ RainbowFish::RainbowFish(float x, float y, int speed, std::shared_ptr<GameSprite
     normalize();
 
     setCollisionRadius(38.0f);
-    m_value = 5;   
+    m_value = 10; 
+    setRequiredPower(0);  
     m_creatureType = AquariumCreatureType::RainbowFish;
 
     // motion params
@@ -656,7 +664,7 @@ void AquariumGameScene::Update(){
                     2, hitSize);
                     if (app->hitmarkSound.isLoaded()) app->hitmarkSound.play();
                     }
-                if(this->m_player->getPower() < event->creatureB->getValue()){
+                if(this->m_player->getPower() < event->creatureB->getRequiredPower()){
                     ofLogNotice() << "Player is too weak to eat the creature!" << std::endl;
                     this->m_player->loseLife(3*60);
                     if(this->m_player->getLives() <= 0){
@@ -680,12 +688,9 @@ void AquariumGameScene::Update(){
     }
 }
 
-void AquariumGameScene::Draw() {
-    this->m_player->draw();
-    this->m_aquarium->draw();
-    this->paintAquariumHUD();
 
-}
+
+
 
 
 void AquariumGameScene::paintAquariumHUD(){
@@ -726,48 +731,11 @@ bool AquariumLevel::isCompleted(){
     return this->m_level_score >= this->m_targetScore;
 }
 
-std::vector<AquariumCreatureType> Level_0::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
-        int delta = node->population - node->currentPopulation;
-        ofLogVerbose() << "to Repopulate :  " << delta << endl;
-        if(delta >0){
-            for(int i = 0; i<delta; i++){
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
-        }
-    }
-    return toRepopulate;
-}
 
-std::vector<AquariumCreatureType> Level_1::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
-        int delta = node->population - node->currentPopulation;
-        if(delta >0){
-            for(int i=0; i<delta; i++){
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
-        }
-    }
-    return toRepopulate;
-}
+           
 
-std::vector<AquariumCreatureType> Level_2::Repopulate() {
-    std::vector<AquariumCreatureType> toRepopulate;
-    for(std::shared_ptr<AquariumLevelPopulationNode> node : this->m_levelPopulation){
-        int delta = node->population - node->currentPopulation;
-        if(delta >0){
-            for(int i=0; i<delta; i++){
-                toRepopulate.push_back(node->creatureType);
-            }
-            node->currentPopulation += delta;
-        }
-    }
-    return toRepopulate;
-}
+
+
 
 void Aquarium::scheduleNextItemBox(float now) {
     nextSpawnAt = now + ofRandom(8.0f, 15.0f);

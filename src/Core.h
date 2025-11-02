@@ -74,7 +74,8 @@ protected:
     float m_width = 0.0f;
     float m_height = 0.0f;
     float m_collisionRadius = 0.0f;
-    int m_value = 0;
+    int m_value = 1;
+    int m_requiredPower = 1;  //power needed to eat
     std::shared_ptr<GameSprite> m_sprite;
 
 public:
@@ -96,6 +97,9 @@ public:
     }
     void setSprite(std::shared_ptr<GameSprite> sprite) { m_sprite = std::move(sprite); }
     int getValue() const { return m_value; }
+     int getRequiredPower() const { return m_requiredPower; } 
+    void setRequiredPower(int p) { m_requiredPower = std::max(0, p); } 
+    
 
     void setBounds(int w, int h);
     void normalize();
