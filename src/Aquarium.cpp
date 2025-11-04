@@ -25,7 +25,9 @@ string AquariumCreatureTypeToString(AquariumCreatureType t){
 
 // PlayerCreature Implementation
 PlayerCreature::PlayerCreature(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
-: Creature(x, y, speed, 10.0f, 1, sprite) {}
+: Creature(x, y, speed, 10.0f, 1, sprite) {
+    initPowerUpBases();  // Add this line
+}
 
 
 void PlayerCreature::setDirection(float dx, float dy) {
@@ -78,7 +80,9 @@ void PlayerCreature::reduceDamageDebounce() {
 }
 
 void PlayerCreature::update() {
+    float now = ofGetElapsedTimef();
     this->reduceDamageDebounce();
+    this->updatePowerUps(now);  // Add this line
     this->move();
 }
 
@@ -183,6 +187,7 @@ BiggerFish::BiggerFish(float x, float y, int speed, std::shared_ptr<GameSprite> 
 
     setCollisionRadius(60); // Bigger fish have a larger collision radius
     m_value = 5; // Bigger fish have a higher value
+    setRequiredPower(m_value);
     m_creatureType = AquariumCreatureType::BiggerFish;
 }
 
@@ -424,6 +429,12 @@ AquariumSpriteManager::AquariumSpriteManager(){
     this->m_big_fish = std::make_shared<GameSprite>("bigger-fish.png", 120, 120);
     this->m_plane_fish = std::make_shared<GameSprite>("plane-fish.png", 60, 60); 
     this->m_rainbow_fish = std::make_shared<GameSprite>("rainbow-fish.png", 80, 80);
+
+    // new sprites (place files in data/)
+    this->m_jellyfish     = std::make_shared<GameSprite>("jellyfish.png", 64, 64);
+    this->m_shark         = std::make_shared<GameSprite>("shark.png", 140, 140);
+    this->m_cleaner_fish  = std::make_shared<GameSprite>("cleaner-fish.png", 50, 50);
+    this->m_coral         = std::make_shared<GameSprite>("coral.png", 90, 90);
 }
 
 
@@ -432,21 +443,118 @@ std::shared_ptr<GameSprite> AquariumSpriteManager::GetSprite(AquariumCreatureTyp
     switch(t){
         case AquariumCreatureType::BiggerFish:
             return std::make_shared<GameSprite>(*this->m_big_fish);
-            
         case AquariumCreatureType::NPCreature:
             return std::make_shared<GameSprite>(*this->m_npc_fish);
         case AquariumCreatureType::PlaneFish:
             return std::make_shared<GameSprite>(*this->m_plane_fish);
-         case AquariumCreatureType::RainbowFish:
+        case AquariumCreatureType::RainbowFish:
             return std::make_shared<GameSprite>(*this->m_rainbow_fish);
+        case AquariumCreatureType::Jellyfish:
+            return std::make_shared<GameSprite>(*this->m_jellyfish);
+        case AquariumCreatureType::Shark:
+            return std::make_shared<GameSprite>(*this->m_shark);
+        case AquariumCreatureType::CleanerFish:
+            return std::make_shared<GameSprite>(*this->m_cleaner_fish);
+        case AquariumCreatureType::Coral:
+            return std::make_shared<GameSprite>(*this->m_coral);
         default:
             return nullptr;
     }
 }
 
+// New: simple Jellyfish (slow drifting; medium collision radius)
+class Jellyfish : public NPCreature {
+public:
+    Jellyfish(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+    : NPCreature(x, y, speed, sprite) {
+        m_dx = 0.0f; m_dy = 0.0f;
+        setCollisionRadius(36.0f);
+        m_value = 0;             // not worth points, hazard instead
+        setRequiredPower(99);    // effectively cannot be eaten normally
+        m_creatureType = AquariumCreatureType::Jellyfish;
+        m_sway = 0.0f;
+    }
+    void move() override {
+        // slow vertical/horizontal sway
+        m_sway += 0.02f;
+        m_x += std::sin(m_sway) * 0.4f;
+        m_y += std::cos(m_sway * 0.7f) * 0.3f;
+        if (m_dx < 0) this->m_sprite->setFlipped(true);
+        else this->m_sprite->setFlipped(false);
+        bounce();
+    }
+private:
+    float m_sway;
+};
+
+// New: Shark (fast predator, larger collision radius, higher value)
+class Shark : public NPCreature {
+public:
+    Shark(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+    : NPCreature(x, y, speed, sprite) {
+        m_dx = (rand()%3 -1); m_dy = (rand()%3 -1);
+        normalize();
+        setCollisionRadius(80.0f);
+        m_value = 15;
+        setRequiredPower(2);
+        m_creatureType = AquariumCreatureType::Shark;
+    }
+    void move() override {
+        // faster movement, occasional burst
+        int burst = rand() % 200;
+        float factor = (burst == 0) ? 2.5f : 1.0f;
+        m_x += m_dx * (m_speed * factor);
+        m_y += m_dy * (m_speed * factor);
+        if (m_dx < 0) this->m_sprite->setFlipped(true);
+        else this->m_sprite->setFlipped(false);
+        bounce();
+    }
+};
+
+// New: CleanerFish (friendly, small value, helps player progress)
+class CleanerFish : public NPCreature {
+public:
+    CleanerFish(float x, float y, int speed, std::shared_ptr<GameSprite> sprite)
+    : NPCreature(x, y, speed, sprite) {
+        m_dx = (rand()%3 -1); m_dy = (rand()%3 -1);
+        normalize();
+        setCollisionRadius(18.0f);
+        m_value = 1;
+        setRequiredPower(0);
+        m_creatureType = AquariumCreatureType::CleanerFish;
+    }
+    void move() override {
+        m_x += m_dx * (m_speed * 0.8f);
+        m_y += m_dy * (m_speed * 0.8f);
+        if (m_dx < 0) this->m_sprite->setFlipped(true);
+        else this->m_sprite->setFlipped(false);
+        bounce();
+    }
+};
+
+// New: Coral (stationary obstacle)
+class Coral : public NPCreature {
+public:
+    Coral(float x, float y, std::shared_ptr<GameSprite> sprite)
+    : NPCreature(x, y, 0, sprite) {
+        setCollisionRadius(50.0f);
+        m_value = 0;
+        setRequiredPower(99); // can't eat
+        m_creatureType = AquariumCreatureType::Coral;
+    }
+    void move() override {
+        // stationary
+    }
+    void draw() const override {
+        if (m_sprite) m_sprite->draw(m_x, m_y);
+    }
+};
+
+
 
 // Aquarium Implementation
-Aquarium::Aquarium(int width, int height, std::shared_ptr<AquariumSpriteManager> spriteManager) : GameLevel(10), m_width(width), m_height(height) {
+Aquarium::Aquarium(int width, int height, std::shared_ptr<AquariumSpriteManager> spriteManager)
+    : m_width(width), m_height(height) {
         m_sprite_manager =  spriteManager;
     }
 
@@ -467,12 +575,29 @@ void Aquarium::update() {
         creature->move();
     }
     this->Repopulate();
+
+
+    //=============================
+    float now = ofGetElapsedTimef();
+    float dt  = ofGetLastFrameTime();
+    updateItemBlock(now, dt);
+    //=============================
+
+    if (scoreMultiplier > 1.0 && now >= scoreMultUntil) {
+        scoreMultiplier = 1.0;
+    }
+
 }
 
 void Aquarium::draw() const {
     for (const auto& creature : m_creatures) {
         creature->draw();
     }
+
+    //=============================
+    const_cast<Aquarium*>(this)->drawItemBlock();
+    //=============================
+
 }
 
 
@@ -498,8 +623,7 @@ std::shared_ptr<Creature> Aquarium::getCreatureAt(int index) {
     return m_creatures[index];
 }
 
-
-
+// Add spawn cases in SpawnCreature
 void Aquarium::SpawnCreature(AquariumCreatureType type) {
     int x = rand() % this->getWidth();
     int y = rand() % this->getHeight();
@@ -512,20 +636,30 @@ void Aquarium::SpawnCreature(AquariumCreatureType type) {
         case AquariumCreatureType::BiggerFish:
             this->addCreature(std::make_shared<BiggerFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::BiggerFish)));
             break;
-             case AquariumCreatureType::PlaneFish:
+        case AquariumCreatureType::PlaneFish:
             this->addCreature(std::make_shared<PlaneFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::PlaneFish)));
             break;
-              case AquariumCreatureType::RainbowFish:
+        case AquariumCreatureType::RainbowFish:
             this->addCreature(std::make_shared<RainbowFish>(x, y, speed, this->m_sprite_manager->GetSprite(AquariumCreatureType::RainbowFish)));
             break;
-            
+        case AquariumCreatureType::Jellyfish:
+            this->addCreature(std::make_shared<Jellyfish>(x, y, std::max(1, speed/4), this->m_sprite_manager->GetSprite(AquariumCreatureType::Jellyfish)));
+            break;
+        case AquariumCreatureType::Shark:
+            this->addCreature(std::make_shared<Shark>(x, y, std::max(4, speed), this->m_sprite_manager->GetSprite(AquariumCreatureType::Shark)));
+            break;
+        case AquariumCreatureType::CleanerFish:
+            this->addCreature(std::make_shared<CleanerFish>(x, y, std::max(1, speed/2), this->m_sprite_manager->GetSprite(AquariumCreatureType::CleanerFish)));
+            break;
+        case AquariumCreatureType::Coral:
+            // coral is stationary; use zero speed constructor variant
+            this->addCreature(std::make_shared<Coral>(x, y, this->m_sprite_manager->GetSprite(AquariumCreatureType::Coral)));
+            break;
         default:
             ofLogError() << "Unknown creature type to spawn!";
             break;
     }
-
 }
-
 
 
 void Aquarium::Repopulate() {
@@ -579,8 +713,6 @@ std::shared_ptr<GameEvent> DetectAquariumCollisions(std::shared_ptr<Aquarium> aq
     return nullptr;
 };
 
-// Implementation of the AquariumScene
-
 
 void AquariumGameScene::Draw() {
     this->m_player->draw();
@@ -588,8 +720,6 @@ void AquariumGameScene::Draw() {
     this->paintAquariumHUD();
 
 }
-
-
 
 
 void AquariumGameScene::Update(){
@@ -637,13 +767,16 @@ void AquariumGameScene::Update(){
     std::shared_ptr<GameEvent> event;
 
     this->m_player->update();
-    //itemblock
+
+    //=========================================
     float now = ofGetElapsedTimef();
     float dt  = ofGetLastFrameTime();
+    m_aquarium->updateItemBlock(now, dt);
+    m_aquarium->checkItemBlockCollision(now, m_player);
+    //=========================================
+    
 
-    m_aquarium->updateItemBox(now, dt);
-    m_aquarium->checkItemBoxCollision(now, m_player);
-    m_player->updatePowerUps(now);
+    
 /////////////////////////////////////////////////////////////////
     if (this->updateControl.tick()) {
         event = DetectAquariumCollisions(this->m_aquarium, this->m_player);
@@ -674,7 +807,16 @@ void AquariumGameScene::Update(){
                 }
                 else{
                     this->m_aquarium->removeCreature(event->creatureB);
-                    this->m_player->addToScore(1, event->creatureB->getValue());
+
+
+
+                    int mult = (int)std::round(m_aquarium->getScoreMultiplier());
+                    if (mult < 1) mult = 1;
+                    this->m_player->addToScore(mult, event->creatureB->getValue());
+                    this->m_aquarium->onScoreUpdated(this->m_player->getScore(), now);
+
+
+
                     if (this->m_player->getScore() % 25 == 0){
                         this->m_player->increasePower(1);
                         ofLogNotice() << "Player power increased to " << this->m_player->getPower() << "!" << std::endl;
@@ -689,10 +831,6 @@ void AquariumGameScene::Update(){
 }
 
 
-
-
-
-
 void AquariumGameScene::paintAquariumHUD(){
     float panelWidth = ofGetWindowWidth() - 150;
     ofDrawBitmapString("Score: " + std::to_string(this->m_player->getScore()), panelWidth, 20);
@@ -703,6 +841,23 @@ void AquariumGameScene::paintAquariumHUD(){
         ofDrawCircle(panelWidth + i * 20, 50, 5);
     }
     ofSetColor(ofColor::white); // Reset color to white for other drawings
+
+    float now = ofGetElapsedTimef();
+    std::string ptxt = m_player->debugPowerUpText(now);
+
+    // line for player’s own buffs
+    ofDrawBitmapString("PowerUp: " + ptxt, ofGetWindowWidth() - 150, 70);
+
+    // line for Double Points (Aquarium-level buff)
+    float mult = m_aquarium->getScoreMultiplier();
+    if (mult > 1.0f) {
+        int sec = (int)std::ceil(m_aquarium->getScoreMultRemaining(now));
+        ofDrawBitmapString("Points x" + std::to_string((int)mult) + " (" + std::to_string(sec) + "s)",
+                        ofGetWindowWidth() - 150, 80);
+    } else {
+        ofDrawBitmapString("Points x1", ofGetWindowWidth() - 150, 80);
+    }
+
 }
 
 void AquariumLevel::populationReset(){
@@ -731,120 +886,159 @@ bool AquariumLevel::isCompleted(){
     return this->m_level_score >= this->m_targetScore;
 }
 
-
-           
-
-
-
-
-void Aquarium::scheduleNextItemBox(float now) {
-    nextSpawnAt = now + ofRandom(8.0f, 15.0f);
-}
-
-void Aquarium::spawnItemBox() {
-    float margin = 80.0f;
-    float x = ofRandom(margin, ofGetWidth()  - margin);
-    float y = ofRandom(margin, ofGetHeight() - margin);
-    itemBox.spawn(x, y);
-    itemBoxPresent = true;
-}
-
-void Aquarium::updateItemBox(float now, float dt) {
-    if (!itemBoxPresent && now >= nextSpawnAt) {
-        spawnItemBox();
-    }
-    itemBox.update(dt);
-
-    // expira doble puntos
-    if (scoreMultiplier > 1.0f && now >= scoreMultUntil) {
-        scoreMultiplier = 1.0f;
-    }
-}
-
-void Aquarium::drawItemBox() {
-    if (itemBoxPresent) itemBox.draw();
-}
-
-void Aquarium::checkItemBoxCollision(float now, std::shared_ptr<PlayerCreature> player) {
-    if (!itemBoxPresent || !itemBox.active || !player) return;
-
-    float dist = ofDist(player->getX(), player->getY(), itemBox.pos.x, itemBox.pos.y);
-    if (dist <= player->getCollisionRadius() + itemBox.radius) {
-        itemBox.playSound();
-
-        PowerUpEffect effect = RandomPowerUpEffect();
-
-        const float D_SPEED  = 5.0f;
-        const float D_SIZE   = 5.0f;
-        const float D_DBLPTS = 8.0f;
-
-        switch (effect) {
-            case PowerUpEffect::DoublePoints:
-                scoreMultiplier = 2.0f;
-                scoreMultUntil  = now + D_DBLPTS;
-                break;
-            case PowerUpEffect::Speed:
-                player->applyPowerUp(PowerUpEffect::Speed, now, D_SPEED);
-                break;
-            case PowerUpEffect::Dash:
-                player->applyPowerUp(PowerUpEffect::Dash, now, 0.0f);
-                break;
-            case PowerUpEffect::Size:
-                player->applyPowerUp(PowerUpEffect::Size, now, D_SIZE);
-                break;
-        }
-
-        itemBox.active = false;
-        itemBoxPresent = false;
-        scheduleNextItemBox(now);
-    }
-}
-bool Aquarium::isCompleted() { return false; }
 void PlayerCreature::applyPowerUp(PowerUpEffect effect, float now, float durationSec) {
-    switch (effect) {
+    float until = now + durationSec;
+    
+    switch(effect) {
+        case PowerUpEffect::DoublePoints:
+            // Handle double points logic if needed
+            break;
+            
         case PowerUpEffect::Speed:
-            speedBoostOn = true;
-            speedBoostUntil = now + durationSec;
-            m_speed = baseSpeed * 2.0f;
+            if (!speedBoostOn) {
+                baseSpeed = m_speed;
+                m_speed *= 2;
+                speedBoostOn = true;
+            }
+            speedBoostUntil = until;
             break;
-
-        case PowerUpEffect::Size:
-            sizeBoostOn = true;
-            sizeBoostUntil = now + durationSec;
-            setCollisionRadius(baseRadius * 2.0f); 
-            break;
-
+            
         case PowerUpEffect::Dash:
             dashUnlocked = true;
-            tryDash(now); 
+            dashCharges = 1;
+            dashCooldownUntil = now;
             break;
-
-        case PowerUpEffect::DoublePoints:
+            
+        case PowerUpEffect::Size:
+            if (!sizeBoostOn) {
+                baseRadius = getCollisionRadius();
+                setCollisionRadius(baseRadius * 2);
+                sizeBoostOn = true;
+            }
+            sizeBoostUntil = until;
             break;
     }
 }
 
 void PlayerCreature::updatePowerUps(float now) {
+    // Handle speed boost
     if (speedBoostOn && now >= speedBoostUntil) {
-        speedBoostOn = false;
         m_speed = baseSpeed;
+        speedBoostOn = false;
     }
+    
+    // Handle size boost
     if (sizeBoostOn && now >= sizeBoostUntil) {
-        sizeBoostOn = false;
         setCollisionRadius(baseRadius);
+        sizeBoostOn = false;
     }
+    
+    // Handle dash cooldown
     if (dashActive && now >= dashActiveUntil) {
         dashActive = false;
+        m_speed = baseSpeed;
+        if (dashCharges <= 0) dashUnlocked = false;
     }
 }
 
 void PlayerCreature::tryDash(float now) {
-    if (!dashUnlocked) return;
-    if (now < dashCooldownUntil || dashActive) return;
-
+    if (!dashUnlocked || dashActive || now < dashCooldownUntil || dashCharges <= 0) {
+        return;
+    }
+    
     dashActive = true;
-    dashActiveUntil   = now + dashDuration;
+    dashActiveUntil = now + dashDuration;
     dashCooldownUntil = now + dashCooldown;
+    
     baseSpeed = m_speed;
-    baseRadius = getCollisionRadius();
+    m_speed *= dashSpeedFactor;
+
+    dashCharges -= 1;
+}
+
+std::string PlayerCreature::debugPowerUpText(float now) const {
+    std::vector<std::string> parts;
+
+    if (speedBoostOn && now < speedBoostUntil) {
+        int sec = (int)std::ceil(speedBoostUntil - now);
+        parts.push_back("Speed x2 (" + std::to_string(sec) + "s)");
+    }
+    if (sizeBoostOn && now < sizeBoostUntil) {
+        int sec = (int)std::ceil(sizeBoostUntil - now);
+        parts.push_back("Size x2 (" + std::to_string(sec) + "s)");
+    }
+    if (dashUnlocked) {
+        if (dashActive) {
+            int sec = (int)std::ceil(dashActiveUntil - now);
+            parts.push_back("Dash ACTIVE (" + std::to_string(sec) + "s)");
+        } else if (now < dashCooldownUntil) {
+            int sec = (int)std::ceil(dashCooldownUntil - now);
+            parts.push_back("Dash CD (" + std::to_string(sec) + "s)");
+        } else if (dashCharges > 0) {
+            parts.push_back("Dash READY");
+        }
+    }
+
+    if (parts.empty()) return "None";
+    std::string out = parts[0];
+    for (size_t i = 1; i < parts.size(); ++i) out += " | " + parts[i];
+    return out;
+}
+
+
+void Aquarium::scheduleNextItemBlock(float now) {
+    float delay = 8.0f + static_cast<float>(rand() % 7);
+    nextSpawnAt = now + delay;
+}
+void Aquarium::spawnItemBlock() {
+    if (!m_width || !m_height) return;
+    float margin = 60.0f;
+    float x = margin + (float)rand()/RAND_MAX * (m_width  - 2*margin);
+    float y = margin + (float)rand()/RAND_MAX * (m_height - 2*margin);
+    itemBlock.spawn(x, y);
+    itemBlock.playSound();
+    itemBlockPresent = true;
+}
+void Aquarium::updateItemBlock(float now, float dt) {
+    static bool loaded = false;
+    if (!loaded) { itemBlock.load(); loaded = true; scheduleNextItemBlock(now); }
+    if (!itemBlockPresent && now >= nextSpawnAt) spawnItemBlock();
+    if (itemBlockPresent) itemBlock.update(dt);
+}
+void Aquarium::drawItemBlock() {
+    if (itemBlockPresent) itemBlock.draw();
+}
+void Aquarium::checkItemBlockCollision(float now, std::shared_ptr<PlayerCreature> player) {
+    if (!itemBlockPresent || !player) return;
+    float dx = (player->getX() - (itemBlock.pos.x - 30));
+    float dy = (player->getY() - (itemBlock.pos.y - 35));
+    float r  = player->getCollisionRadius() + itemBlock.radius;
+    if (dx*dx + dy*dy <= r*r) {
+        PowerUpEffect eff = RandomPowerUpEffect();
+
+
+        if (eff == PowerUpEffect::DoublePoints) {
+        scoreMultiplier = 2.0f;
+        scoreMultUntil  = now + 10.0f; 
+        } else {
+            player->applyPowerUp(eff, now, 10.0f);
+        }
+
+        itemBlockPresent = false;
+        scheduleNextItemBlock(now);
+    }
+}
+void Aquarium::onScoreUpdated(int score, float now) {
+    if (score > 0 && score % 15 == 0 && !itemBlockPresent)
+        nextSpawnAt = std::min(nextSpawnAt, now + 3.0f);
+}
+
+float Aquarium::getScoreMultiplier() const {
+    return (ofGetElapsedTimef() < scoreMultUntil) ? scoreMultiplier : 1.0f;
+}
+
+
+
+float Aquarium::getScoreMultRemaining(float now) const {
+    return std::max(0.0f, scoreMultUntil - now);
 }

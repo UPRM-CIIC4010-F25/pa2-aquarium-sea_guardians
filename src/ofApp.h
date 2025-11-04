@@ -41,7 +41,7 @@ class ofApp : public ofBaseApp{
 		void dragEvent(ofDragInfo dragInfo) override;
 		void gotMessage(ofMessage msg) override;
 	
-		
+
 		char moveDirection;
 		int DEFAULT_SPEED = 5;
 
@@ -59,5 +59,7 @@ class ofApp : public ofBaseApp{
 
 		std::unique_ptr<GameSceneManager> gameManager;
 		std::shared_ptr<AquariumSpriteManager>spriteManager;
+		std::shared_ptr<PlayerCreature> player;
+		std::shared_ptr<Aquarium> myAquarium;
 		
 };

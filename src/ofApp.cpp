@@ -5,55 +5,43 @@ void ofApp::setup(){
 
     ofSetFrameRate(60);
     ofSetBackgroundColor(ofColor::blue);
+
+    
+    gameManager = std::make_unique<GameSceneManager>();
     backgroundImage.load("background.png");
     backgroundImage.resize(ofGetWindowWidth(), ofGetWindowHeight());
-
-
-    std::shared_ptr<Aquarium> myAquarium;
-    std::shared_ptr<PlayerCreature> player;
-
-    // make the game scene manager 
-    gameManager = std::make_unique<GameSceneManager>();
-
-
-    // first we make the intro scene 
+    spriteManager = std::make_shared<AquariumSpriteManager>();
     gameManager->AddScene(std::make_shared<GameIntroScene>(
         GameSceneKindToString(GameSceneKind::GAME_INTRO),
         std::make_shared<GameSprite>("title.png", ofGetWindowWidth(), ofGetWindowHeight())
     ));
 
-    //AquariumSpriteManager
-    spriteManager = std::make_shared<AquariumSpriteManager>();
-
-    // Lets setup the aquarium
+    //Crea Aquarium 
     myAquarium = std::make_shared<Aquarium>(ofGetWindowWidth(), ofGetWindowHeight(), spriteManager);
-    player = std::make_shared<PlayerCreature>(ofGetWindowWidth()/2 - 50, ofGetWindowHeight()/2 - 50, DEFAULT_SPEED, this->spriteManager->GetSprite(AquariumCreatureType::NPCreature));
-    player->setDirection(0, 0); // Initially stationary
+    player = std::make_shared<PlayerCreature>(
+        ofGetWindowWidth()/2 - 50,
+        ofGetWindowHeight()/2 - 50,
+        DEFAULT_SPEED,
+        this->spriteManager->GetSprite(AquariumCreatureType::NPCreature)
+    );
+    player->setDirection(0, 0);
     player->setBounds(ofGetWindowWidth() - 20, ofGetWindowHeight() - 20);
 
-
+    // Niveles y población inicial
     myAquarium->addAquariumLevel(std::make_shared<Level_0>(0, 10));
     myAquarium->addAquariumLevel(std::make_shared<Level_1>(1, 15));
     myAquarium->addAquariumLevel(std::make_shared<Level_2>(2, 20));
-    myAquarium->Repopulate(); // initial population
+    myAquarium->Repopulate();
 
-    // now that we are mostly set, lets pass the player and the aquarium downstream
     gameManager->AddScene(std::make_shared<AquariumGameScene>(
-        std::move(player), std::move(myAquarium), GameSceneKindToString(GameSceneKind::AQUARIUM_GAME)
-    )); // player and aquarium are owned by the scene moving forward
+        player, myAquarium, GameSceneKindToString(GameSceneKind::AQUARIUM_GAME)
+    ));
 
-    // Load font for game over message
-    gameOverTitle.load("Verdana.ttf", 12, true, true);
-    gameOverTitle.setLineHeight(34.0f);
-    gameOverTitle.setLetterSpacing(1.035);
-
-
+    //Escena de GAME OVER
     gameManager->AddScene(std::make_shared<GameOverScene>(
         GameSceneKindToString(GameSceneKind::GAME_OVER),
         std::make_shared<GameSprite>("game-over.png", ofGetWindowWidth(), ofGetWindowHeight())
     ));
-
-    ofSetLogLevel(OF_LOG_NOTICE); // Set default log level
 
     // hitmark setup
     bool ok = hitmarkImage.load("hitmark.png");
@@ -63,6 +51,7 @@ void ofApp::setup(){
     hitmarkSound.setVolume(0.9f);
     if (hitmarkSound.isLoaded()) {
     }
+    ofSetLogLevel(OF_LOG_NOTICE);
 }
 
 //--------------------------------------------------------------
@@ -75,6 +64,8 @@ void ofApp::update(){
     if(gameManager->GetActiveSceneName() == GameSceneKindToString(GameSceneKind::AQUARIUM_GAME)){
         auto gameScene = std::static_pointer_cast<AquariumGameScene>(gameManager->GetActiveScene());
         if(gameScene->GetLastEvent() != nullptr && gameScene->GetLastEvent()->isGameOver()){
+            hit.active = false; // disable hitmarker
+            hit.timer = 0;
             gameManager->Transition(GameSceneKindToString(GameSceneKind::GAME_OVER));
             return;
         }
@@ -94,21 +85,23 @@ void ofApp::draw(){
     gameManager->DrawActiveScene();
     
     //draw hitmarker
-    if (hit.active && hitmarkImage.isAllocated()){
-    ofPushStyle();
-    ofEnableAlphaBlending();
-    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-    float a = 255.0f * hit.alpha();
-    float imgW = hitmarkImage.getWidth();
-    float imgH = hitmarkImage.getHeight();
-    float base = (hit.sizePx > 0 ? hit.sizePx : imgW);
-    float shrink = 0.3f; 
-    float w = base * shrink;
-    float h = (base * imgH / imgW) * shrink;
-    ofSetColor(255,255,255,(int)a);
-    hitmarkImage.draw(hit.x, hit.y, w, h);
-    ofPopStyle();
-}
+    if (gameManager->GetActiveSceneName() == GameSceneKindToString(GameSceneKind::AQUARIUM_GAME)) {
+        if (hit.active && hitmarkImage.isAllocated()){
+        ofPushStyle();
+        ofEnableAlphaBlending();
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+        float a = 255.0f * hit.alpha();
+        float imgW = hitmarkImage.getWidth();
+        float imgH = hitmarkImage.getHeight();
+        float base = (hit.sizePx > 0 ? hit.sizePx : imgW);
+        float shrink = 0.3f; 
+        float w = base * shrink;
+        float h = (base * imgH / imgW) * shrink;
+        ofSetColor(255,255,255,(int)a);
+        hitmarkImage.draw(hit.x, hit.y, w, h);
+        ofPopStyle();
+        }
+    }
 }
 
 //--------------------------------------------------------------
@@ -128,17 +121,40 @@ void ofApp::keyPressed(int key){
             case OF_KEY_UP:
                 gameScene->GetPlayer()->setDirection(gameScene->GetPlayer()->isXDirectionActive()?gameScene->GetPlayer()->getDx():0, -1);
                 break;
-                case OF_KEY_DOWN:
+            case OF_KEY_DOWN:
                 gameScene->GetPlayer()->setDirection(gameScene->GetPlayer()->isXDirectionActive()?gameScene->GetPlayer()->getDx():0, 1);
                 break;
             case OF_KEY_LEFT:
                 gameScene->GetPlayer()->setDirection(-1, gameScene->GetPlayer()->isYDirectionActive()?gameScene->GetPlayer()->getDy():0);
                 gameScene->GetPlayer()->setFlipped(true);
                 break;
-                case OF_KEY_RIGHT:
+            case OF_KEY_RIGHT:
                 gameScene->GetPlayer()->setDirection(1, gameScene->GetPlayer()->isYDirectionActive()?gameScene->GetPlayer()->getDy():0);
                 gameScene->GetPlayer()->setFlipped(false);
                 break;
+            case 'b':
+            case 'B': {
+                auto gameScene = std::static_pointer_cast<AquariumGameScene>(gameManager->GetActiveScene());
+                if (gameScene) {
+                    auto aq = gameScene->GetAquarium();
+                    auto pl = gameScene->GetPlayer();
+                    if (aq && pl) {
+                        aq->itemBlock.load();                 // ensure assets loaded
+                        aq->itemBlock.spawn(pl->getX()+80.f, pl->getY());
+                        aq->itemBlock.playSound();
+                        aq->itemBlockPresent = true;
+                    }
+                }
+                break;
+            }
+            
+            case OF_KEY_SHIFT: {
+                auto gameScene = std::static_pointer_cast<AquariumGameScene>(gameManager->GetActiveScene());
+                if (gameScene) {
+                    gameScene->GetPlayer()->tryDash(ofGetElapsedTimef());
+                }
+                break;
+            }
             default:
                 break;
         }
