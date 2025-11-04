@@ -24,8 +24,8 @@ Grading
 ## Team Info
 | Student Number | Student Name | Student Email |
 |-|-|-|
-|(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
-|(STUDENT NUMBER HERE)| (STUDENT NAME HERE)| (STUDENT EMAIL HERE) |
+|(802-23-6224)| (Karla M. Rodriguez Beauchamp)| (karla.rodriguez80@upr.edu) |
+|(802-23-9350)| (Joseph J Avilés Moró)| (joseph.aviles@upr.edu ) |
 
 ---
 
@@ -37,3 +37,9 @@ If a partner has no commits in the repositories, they will receive a 0.
 
 # Student Notes
 If you have any bonus specs, bonus or any details the TA's should know, you should include it here:
+A bonus was added:
+It is a hitmark bonus feature was added.
+As a hitmarker, it appears every time two fish collide, also triggering a sound and displaying their image.
+Power-ups
+    Double points, Dash - There's also a debug key to bring up the ItemBox; the key is "b," and it's used to access the power-up dash and Speed
+    You lose the game by losing all your lives, which you do by colliding with large fish.
