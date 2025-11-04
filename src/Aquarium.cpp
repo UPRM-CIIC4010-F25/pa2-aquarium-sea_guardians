@@ -908,15 +908,6 @@ void PlayerCreature::applyPowerUp(PowerUpEffect effect, float now, float duratio
             dashCharges = 1;
             dashCooldownUntil = now;
             break;
-            
-        case PowerUpEffect::Size:
-            if (!sizeBoostOn) {
-                baseRadius = getCollisionRadius();
-                setCollisionRadius(baseRadius * 2);
-                sizeBoostOn = true;
-            }
-            sizeBoostUntil = until;
-            break;
     }
 }
 
